@@ -7,6 +7,10 @@ import { inspectAttr } from 'kimi-plugin-inspect-react'
 export default defineConfig({
   base: './',
   plugins: [inspectAttr(), react()],
+  // 兼容旧版手机浏览器（如老 iOS Safari），避免解析失败导致黑屏
+  build: {
+    target: ['es2018', 'chrome87', 'safari14', 'firefox78', 'edge88'],
+  },
   server: {
     port: 3000,
   },

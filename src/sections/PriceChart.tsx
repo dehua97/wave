@@ -14,6 +14,11 @@ const NAV_H = 44
 const MIN_BARS = 25
 const DEFAULT_BARS = 252
 
+/** 初始视窗 K 线数：窄屏（手机）默认更少，避免 K 线过密 */
+function defaultBars(): number {
+  return typeof window !== 'undefined' && window.innerWidth < 480 ? 120 : DEFAULT_BARS
+}
+
 // 副图指标面板尺寸（MACD/RSI/KDJ 共用）
 const SUB_H = 92
 const SUB_PAD_T = 16
@@ -56,6 +61,8 @@ interface SubPanelLine {
 
 interface SubPanelProps {
   width: number
+  /** 右侧刻度留白（窄屏变小，与主图一致） */
+  padR: number
   start: number
   end: number
   step: number
@@ -77,8 +84,8 @@ interface SubPanelProps {
  * 副图指标面板：与主图共享视窗（start/end/cx），主图的平移缩放天然同步。
  * 仅响应十字光标（hover），不承载拖动平移与摆动点改判。
  */
-function SubPanel({ width, start, end, step, cx, title, lines, hist, refs, fixedRange, hover, lastIdx, onHover }: SubPanelProps) {
-  const plotW = width - PAD_L - PAD_R
+function SubPanel({ width, padR, start, end, step, cx, title, lines, hist, refs, fixedRange, hover, lastIdx, onHover }: SubPanelProps) {
+  const plotW = width - PAD_L - padR
   const plotH = SUB_H - SUB_PAD_T - SUB_PAD_B
   const barW = clamp(step * 0.65, 1, 14)
 
@@ -126,7 +133,7 @@ function SubPanel({ width, start, end, step, cx, title, lines, hist, refs, fixed
   }
 
   return (
-    <svg width={width} height={SUB_H} className="mt-1 block cursor-crosshair touch-none select-none">
+    <svg width={width} height={SUB_H} className="mt-1 block cursor-crosshair touch-pan-y select-none">
       {/* 顶部分隔线 */}
       <line x1={0} x2={width} y1={0.5} y2={0.5} stroke="#1a2540" strokeWidth={1} />
       {/* 标题 + 当前值 */}
@@ -148,17 +155,17 @@ function SubPanel({ width, start, end, step, cx, title, lines, hist, refs, fixed
       {(refs ?? []).map((r) => (
         <g key={`r-${r}`}>
           <line x1={PAD_L} x2={PAD_L + plotW} y1={sy(r)} y2={sy(r)} stroke="#1a2540" strokeWidth={1} strokeDasharray="4 4" />
-          <text x={width - PAD_R + 6} y={sy(r) + 3} fontSize={10} fill="#8b96ad" className="font-mono2">
+          <text x={width - padR + 6} y={sy(r) + 3} fontSize={10} fill="#8b96ad" className="font-mono2">
             {r}
           </text>
         </g>
       ))}
       {!fixedRange && (
         <>
-          <text x={width - PAD_R + 6} y={SUB_PAD_T + 4} fontSize={10} fill="#8b96ad" className="font-mono2">
+          <text x={width - padR + 6} y={SUB_PAD_T + 4} fontSize={10} fill="#8b96ad" className="font-mono2">
             {hi.toFixed(2)}
           </text>
-          <text x={width - PAD_R + 6} y={SUB_PAD_T + plotH} fontSize={10} fill="#8b96ad" className="font-mono2">
+          <text x={width - padR + 6} y={SUB_PAD_T + plotH} fontSize={10} fill="#8b96ad" className="font-mono2">
             {lo.toFixed(2)}
           </text>
         </>
@@ -222,10 +229,10 @@ export default function PriceChart({ instrument, wave }: { instrument: Instrumen
   const wrapRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const [width, setWidth] = useState(960)
-  const [view, setView] = useState<View>(() => ({
-    start: Math.max(0, total - DEFAULT_BARS),
-    count: Math.min(DEFAULT_BARS, total),
-  }))
+  const [view, setView] = useState<View>(() => {
+    const bars = defaultBars()
+    return { start: Math.max(0, total - bars), count: Math.min(bars, total) }
+  })
   const [hover, setHover] = useState<number | null>(null)
   const [hoverY, setHoverY] = useState(0)
   const [dragging, setDragging] = useState(false)
@@ -238,7 +245,8 @@ export default function PriceChart({ instrument, wave }: { instrument: Instrumen
 
   // 切换品种：重置视窗、十字光标、改判浮层，并载入该品种的标注
   useEffect(() => {
-    setView({ start: Math.max(0, total - DEFAULT_BARS), count: Math.min(DEFAULT_BARS, total) })
+    const bars = defaultBars()
+    setView({ start: Math.max(0, total - bars), count: Math.min(bars, total) })
     setHover(null)
     setLabels(loadLabels(instrument.key))
     setLabelTarget(null)
@@ -255,8 +263,12 @@ export default function PriceChart({ instrument, wave }: { instrument: Instrumen
     return () => ro.disconnect()
   }, [])
 
-  const plotW = width - PAD_L - PAD_R
-  const plotH = CHART_H - PAD_T - PAD_B
+  // 窄屏（手机）适配：主图更矮、右侧刻度留白更小
+  const narrow = width < 480
+  const padR = narrow ? 48 : PAD_R
+  const chartH = narrow ? 400 : CHART_H
+  const plotW = width - PAD_L - padR
+  const plotH = chartH - PAD_T - PAD_B
   const { start, count } = view
   const end = Math.min(start + count, total) // 可见区间的开区间右端
   const step = plotW / count
@@ -396,13 +408,13 @@ export default function PriceChart({ instrument, wave }: { instrument: Instrumen
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const rect = el.getBoundingClientRect()
-      const ratio = clamp((e.clientX - rect.left - PAD_L) / (rect.width - PAD_L - PAD_R), 0, 1)
+      const ratio = clamp((e.clientX - rect.left - PAD_L) / (rect.width - PAD_L - padR), 0, 1)
       zoomAt(e.deltaY < 0 ? 0.8 : 1.25, ratio)
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [start, count, total])
+  }, [start, count, total, padR])
 
   // ---- 主图拖动平移 ----
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
@@ -542,8 +554,8 @@ export default function PriceChart({ instrument, wave }: { instrument: Instrumen
       <svg
         ref={svgRef}
         width={width}
-        height={CHART_H}
-        className={`block touch-none select-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+        height={chartH}
+        className={`block touch-pan-y select-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -560,14 +572,14 @@ export default function PriceChart({ instrument, wave }: { instrument: Instrumen
         {priceTicks.map((p) => (
           <g key={p}>
             <line x1={PAD_L} x2={PAD_L + plotW} y1={cy(p)} y2={cy(p)} stroke="#1a2540" strokeWidth={1} />
-            <text x={width - PAD_R + 6} y={cy(p) + 3} fontSize={10} fill="#8b96ad" className="font-mono2">
+            <text x={width - padR + 6} y={cy(p) + 3} fontSize={10} fill="#8b96ad" className="font-mono2">
               {p.toFixed(1)}
             </text>
           </g>
         ))}
         {/* 底部日期刻度 */}
         {dateTicks.map((t) => (
-          <text key={t.i} x={cx(t.i)} y={CHART_H - 6} fontSize={10} fill="#8b96ad" textAnchor="middle" className="font-mono2">
+          <text key={t.i} x={cx(t.i)} y={chartH - 6} fontSize={10} fill="#8b96ad" textAnchor="middle" className="font-mono2">
             {t.label}
           </text>
         ))}
@@ -691,8 +703,8 @@ export default function PriceChart({ instrument, wave }: { instrument: Instrumen
         {/* 最新收盘价签 */}
         {last.c >= minP && last.c <= maxP && (
           <g pointerEvents="none">
-            <rect x={width - PAD_R + 2} y={cy(last.c) - 8} width={PAD_R - 6} height={16} fill="#ffb800" rx={2} />
-            <text x={width - PAD_R + 2 + (PAD_R - 6) / 2} y={cy(last.c) + 3} fontSize={10} fontWeight={700} fill="#050810" textAnchor="middle" className="font-mono2">
+            <rect x={width - padR + 2} y={cy(last.c) - 8} width={padR - 6} height={16} fill="#ffb800" rx={2} />
+            <text x={width - padR + 2 + (padR - 6) / 2} y={cy(last.c) + 3} fontSize={10} fontWeight={700} fill="#050810" textAnchor="middle" className="font-mono2">
               {last.c.toFixed(1)}
             </text>
           </g>
@@ -754,6 +766,7 @@ export default function PriceChart({ instrument, wave }: { instrument: Instrumen
       {showInd.macd && (
         <SubPanel
           width={width}
+          padR={padR}
           start={start}
           end={end}
           step={step}
@@ -773,6 +786,7 @@ export default function PriceChart({ instrument, wave }: { instrument: Instrumen
       {showInd.rsi && (
         <SubPanel
           width={width}
+          padR={padR}
           start={start}
           end={end}
           step={step}
@@ -789,6 +803,7 @@ export default function PriceChart({ instrument, wave }: { instrument: Instrumen
       {showInd.kdj && (
         <SubPanel
           width={width}
+          padR={padR}
           start={start}
           end={end}
           step={step}
@@ -856,7 +871,7 @@ export default function PriceChart({ instrument, wave }: { instrument: Instrumen
             className="absolute z-20 w-[188px] rounded-sm p-2"
             style={{
               left: clamp(labelTarget.x + 12, 4, width - 196),
-              top: labelTarget.y > CHART_H - 120 ? labelTarget.y - 150 : labelTarget.y + 14,
+              top: labelTarget.y > chartH - 120 ? labelTarget.y - 150 : labelTarget.y + 14,
               background: '#0c1220',
               border: '1px solid var(--gold)',
               boxShadow: '0 4px 18px rgba(0,0,0,0.5)',
@@ -895,7 +910,7 @@ export default function PriceChart({ instrument, wave }: { instrument: Instrumen
       <svg
         width={width}
         height={NAV_H}
-        className="mt-1 block cursor-crosshair touch-none select-none"
+        className="mt-1 block cursor-crosshair touch-pan-y select-none"
         onPointerDown={(e) => onNavPointerDown(e, false)}
         onPointerMove={onNavPointerMove}
         onPointerUp={onNavPointerUp}

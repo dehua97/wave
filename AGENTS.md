@@ -35,7 +35,7 @@ src/lib/labels.ts   摆动点浪级标注的 localStorage 持久化（按品种�
 src/lib/indicators.ts 技术指标纯函数计算：ema/computeMACD(12,26,9，柱=(DIF-DEA)×2)/computeRSI(Wilder 平滑，14)/computeKDJ(9,3,3)；输出与输入等长的 (number|null)[]（预热期为 null），供 PriceChart 副图与 SignalPanel 摘要共用
 src/index.css       全局样式：Tailwind 指令 + 暗色终端风格的 CSS 变量与工具类
 src/App.css         Vite 模板遗留文件，未被任何文件引用，可忽略
-vite.config.ts      端口 3000、base './'、别名 @ -> ./src
+vite.config.ts      端口 3000、base './'、别名 @ -> ./src；build.target 设为 es2018/safari14 等以兼容旧版手机浏览器
 tailwind.config.js  shadcn 主题令牌（CSS 变量驱动）、darkMode: ["class"]
 components.json     shadcn 配置（组件目录指向 @/components/ui，尚未生成）
 info.md             脚手架生成时的说明（描述的是目标结构，非现状）
@@ -69,6 +69,7 @@ info.md             脚手架生成时的说明（描述的是目标结构，非
 - **改判**：点击摆动点弹出浮层（16 个浪级标签 + 清除），标注按品种写入 `src/lib/labels.ts`（localStorage），状态留在组件内部，Home 无感知；切换品种时视窗/标注/浮层自动重置。
 - **视窗状态**：`{start, count}` 用 useState，默认最近约 252 根；日期→K线序号的对齐用 useMemo 缓存的 Map + 二分查找。
 - **副图指标**：主图与迷你导航条之间可选渲染 MACD/RSI/KDJ 三个副图面板（内部 `SubPanel` 组件，各高约 92px），与主图共享视窗（start/end/cx），平移缩放天然同步；工具栏可单独开关（默认全开）；副图仅响应十字光标，OHLC 浮窗同步显示 hover K 线的指标值；指标由 `src/lib/indicators.ts` 基于 ohlc 实时计算。
+- **移动端适配**：宽度 <480px 时主图高度 400、右侧刻度留白 48、初始视窗 120 根（`defaultBars()`）；所有 SVG 用 `touch-pan-y`（竖向滑动正常滚动页面，横向拖动平移图表）。
 
 ## 常用命令
 
