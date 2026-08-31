@@ -27,7 +27,7 @@ index.html          入口 HTML；含内联首屏加载动画（#splash），lan
 market_data.json → public/market_data.json    行情数据文件（多品种 + 时事 + 宏观日历），结构见下文；放在 public/ 下以便构建时拷入 dist/
 scripts/            数据管线脚本（Node）：update:data 按品种源链抓真实日K（大宗商品→新浪国际期货，A股→同花顺/东方财富，Yahoo 兜底，全链失败复用现有 JSON 的 OHLC）并重算波浪/回测，合并 scripts/news.seed.json 策展时事，原子替换 public/market_data.json；`--offline` 模式不访问网络，复用现有 JSON 的 OHLC 按最新规则重算。回测规则：只做多 + 大级别（3×小级别阈值）顺势过滤 + 大级别失效位止损/保本移损，浪3/浪5 因果入场（无前视）
 src/main.tsx        入口：先 loadMarketData()，成功后才挂载 React；失败在 splash 上显示错误
-src/App.tsx         根组件：仅一个 Route（/ -> ./pages/Home）
+src/App.tsx         根组件：仅一个 Route（* -> ./pages/Home；用通配符兜底，保证部署在子路径如 GitHub Pages /wave/ 时也能命中首页）
 src/pages/Home.tsx  首页：持有「当前品种」与「当前选中波浪」状态（默认黄金，切换品种时波浪重置为新品种评分最高者）；三栏终端布局（xl:grid-cols-[280px_1fr_360px]，容器 max-w-[1720px]）；左栏 WatchlistPanel + InsightPanel，中栏 PriceChart（移动端 order-first 排最前），右栏 SignalPanel + NewsPanel + CalendarPanel + WavePanel，底部通栏 BacktestPanel；最外层带径向金色背景光
 src/sections/       HeaderBar（顶栏）、WatchlistPanel（品种池分组列表）、PriceChart（自绘 SVG 主图）、WavePanel（波浪选择列表，右栏底部）、InsightPanel（左栏：当前波浪解读/识别引擎说明/历史形态列表）、SignalPanel（右栏顶部：观察信号+支撑阻力+MACD/RSI/KDJ 指标状态摘要）、NewsPanel（消息面情绪计分盘+时事列表）、CalendarPanel（宏观事件日历）、NewsModal（时事/日历共用的详情弹窗，弹窗状态在各面板内部）、BacktestPanel（回测明细+净值）
 src/lib/data.ts     数据层：类型定义 + loadMarketData()/getMarketData()（fetch market_data.json，幂等缓存）
